@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
   <title>Batouwe U12 Roulatieplanner</title>
 
   <style>
@@ -19,6 +20,9 @@
       --light-green: #ecfdf3;
       --yellow: #8a5a00;
       --light-yellow: #fff8e1;
+      --orange: #f59e0b;
+      --blue: #2563eb;
+      --inbounder-green: #16a34a;
       --shadow: 0 12px 30px rgba(80,0,0,.10);
     }
 
@@ -212,6 +216,7 @@
     }
 
     input[type="text"],
+    input[type="number"],
     select {
       width: 100%;
       padding: 11px 12px;
@@ -430,28 +435,55 @@
       gap: 6px;
     }
 
-    .role-counts {
+    /* Legenda */
+    .role-legend {
       display: flex;
       flex-wrap: wrap;
-      gap: 6px;
-      font-size: .8rem;
-    }
-
-    .role-counts span {
-      padding: 5px 7px;
-      background: #f5eeee;
-      border-radius: 7px;
-    }
-
-    .period-editor {
-      display: grid;
       gap: 8px;
-      min-width: 165px;
+      margin: 0 0 18px;
     }
 
-    .period-editor select {
-      padding: 8px;
-      font-size: .84rem;
+    .legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 7px 10px;
+      border-radius: 999px;
+      font-size: .82rem;
+      font-weight: bold;
+    }
+
+    .legend-color {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+    }
+
+    .legend-dribbler {
+      color: #92400e;
+      background: #fef3c7;
+    }
+
+    .legend-dribbler .legend-color {
+      background: var(--orange);
+    }
+
+    .legend-runner {
+      color: #1e40af;
+      background: #dbeafe;
+    }
+
+    .legend-runner .legend-color {
+      background: var(--blue);
+    }
+
+    .legend-inbounder {
+      color: #166534;
+      background: #dcfce7;
+    }
+
+    .legend-inbounder .legend-color {
+      background: var(--inbounder-green);
     }
 
     /* Aan/uit-bord */
@@ -461,7 +493,7 @@
     }
 
     .planner-board {
-      min-width: 860px;
+      min-width: 760px;
       border-collapse: separate;
       border-spacing: 5px;
     }
@@ -475,7 +507,7 @@
     }
 
     .planner-board th:first-child {
-      min-width: 175px;
+      min-width: 180px;
       text-align: left;
     }
 
@@ -506,26 +538,43 @@
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      width: 68px;
+      width: 72px;
       height: 45px;
       padding: 0;
       color: #888;
       background: #f5f5f5;
       border: 2px solid #e1dede;
       border-radius: 10px;
-      font-size: .78rem;
+      font-size: .76rem;
       font-weight: bold;
     }
 
     .board-toggle:hover {
-      border-color: var(--red);
+      border-color: #555;
     }
 
-    .board-toggle.is-playing {
+    .board-toggle.is-playing.role-dribbler {
+      color: #78350f;
+      background: var(--orange);
+      border-color: #d97706;
+    }
+
+    .board-toggle.is-playing.role-runner {
+      color: white;
+      background: var(--blue);
+      border-color: #1d4ed8;
+    }
+
+    .board-toggle.is-playing.role-inbounder {
+      color: white;
+      background: var(--inbounder-green);
+      border-color: #15803d;
+    }
+
+    .board-toggle.is-playing.role-unknown {
       color: white;
       background: var(--red);
       border-color: var(--dark-red);
-      box-shadow: 0 4px 10px rgba(201,21,30,.22);
     }
 
     .board-count {
@@ -604,7 +653,7 @@
 
       #scheduleCard > summary {
         display: block;
-        margin-bottom: 12px;
+        margin-bottom: 10px;
         color: #000;
         font-size: 20px;
       }
@@ -614,9 +663,22 @@
       #saveBoard,
       #balanceMessage,
       #scheduleCard .notice,
-      #scheduleCard .actions,
-      #scheduleCard > .table-scroll {
+      #scheduleCard .actions {
         display: none !important;
+      }
+
+      .role-legend {
+        margin-bottom: 10px;
+      }
+
+      .legend-item {
+        padding: 4px 7px;
+        font-size: 8px;
+      }
+
+      .legend-color {
+        width: 9px;
+        height: 9px;
       }
 
       .planner-board-wrapper {
@@ -636,7 +698,7 @@
       }
 
       .planner-board th:first-child {
-        min-width: 90px;
+        min-width: 85px;
       }
 
       .planner-board td {
@@ -645,13 +707,13 @@
 
       .board-player-name {
         gap: 3px;
-        font-size: 9px;
+        font-size: 8px;
       }
 
       .board-player-number {
-        width: 18px;
-        height: 18px;
-        flex-basis: 18px;
+        width: 17px;
+        height: 17px;
+        flex-basis: 17px;
         font-size: 7px;
       }
 
@@ -665,11 +727,22 @@
         font-size: 8px;
       }
 
-      .board-toggle.is-playing {
+      .board-toggle.is-playing.role-dribbler {
+        color: #78350f;
+        background: #fcd34d;
+        border-color: #b45309;
+      }
+
+      .board-toggle.is-playing.role-runner {
         color: #000;
-        background: #d9d9d9;
-        border-color: #777;
-        box-shadow: none;
+        background: #93c5fd;
+        border-color: #1d4ed8;
+      }
+
+      .board-toggle.is-playing.role-inbounder {
+        color: #000;
+        background: #86efac;
+        border-color: #15803d;
       }
 
       .board-toggle.is-playing::after {
@@ -682,14 +755,10 @@
 
       .board-period-names {
         display: block;
-        margin: 10px 0 14px;
+        margin: 12px 0 14px;
         color: #000;
         font-size: 10px;
         line-height: 1.5;
-      }
-
-      .board-period-names strong {
-        font-weight: bold;
       }
     }
   </style>
@@ -736,6 +805,7 @@
       <div class="grid grid-two">
         <div>
           <label for="matchName">Tegenstander</label>
+
           <input
             id="matchName"
             type="text"
@@ -753,7 +823,9 @@
         </div>
       </div>
 
-      <h3 style="margin-top:24px;">Beschikbaarheid</h3>
+      <h3 style="margin-top:24px;">
+        Beschikbaarheid
+      </h3>
 
       <div id="availabilityGrid" class="availability-grid"></div>
 
@@ -775,16 +847,33 @@
       </summary>
 
       <div class="notice" style="margin-bottom:16px;">
-        Klik per speler en periode op <strong>AAN</strong> of
-        <strong>UIT</strong>. Klik daarna op
-        <strong>Schema opslaan</strong>.
+        Klik per speler en periode op
+        <strong>AAN</strong> of <strong>UIT</strong>.
+        Klik daarna op <strong>Schema opslaan</strong>.
+      </div>
+
+      <div class="role-legend">
+        <span class="legend-item legend-dribbler">
+          <span class="legend-color"></span>
+          Dribbelaar
+        </span>
+
+        <span class="legend-item legend-runner">
+          <span class="legend-color"></span>
+          Runner
+        </span>
+
+        <span class="legend-item legend-inbounder">
+          <span class="legend-color"></span>
+          Inbounder
+        </span>
       </div>
 
       <div id="balanceMessage"></div>
 
       <div id="plannerBoard"></div>
 
-      <div class="actions" style="margin-top:0;margin-bottom:16px;">
+      <div class="actions" style="margin-top:0;">
         <button id="saveBoard" class="primary">
           Schema opslaan
         </button>
@@ -792,22 +881,6 @@
         <button id="printCurrentMatch" class="primary">
           🖨️ Schema afdrukken / PDF
         </button>
-      </div>
-
-      <div class="table-scroll">
-        <table>
-          <thead>
-            <tr>
-              <th>Periode</th>
-              <th>Spelers op het veld</th>
-              <th>Rolverdeling</th>
-              <th>Speeltijd</th>
-              <th>Actie</th>
-            </tr>
-          </thead>
-
-          <tbody id="scheduleBody"></tbody>
-        </table>
       </div>
     </details>
 
@@ -888,8 +961,10 @@
   </main>
 
   <script>
-    const APP_URL =
-      "https://script.google.com/macros/s/AKfycbyxFMw018NKVQounPRphzC9o8ChCXsudo4p3lXFoGpoSOiXMhjr42IB4ym-71WKVbKQ2A/exec";
+    /*
+     * Vervang deze URL door jouw gedeployde Apps Script-webapp-URL.
+     */
+    const APP_URL =   "https://script.google.com/macros/s/AKfycbyxFMw018NKVQounPRphzC9o8ChCXsudo4p3lXFoGpoSOiXMhjr42IB4ym-71WKVbKQ2A/exec";
 
     const TOTAL_PLAYERS = 12;
     const TOTAL_PERIODS = 8;
@@ -899,15 +974,18 @@
     const roles = [
       {
         key: "dribbler",
-        label: "Dribbelaar"
+        label: "Dribbelaar",
+        cssClass: "role-dribbler"
       },
       {
         key: "runner",
-        label: "Runner"
+        label: "Runner",
+        cssClass: "role-runner"
       },
       {
         key: "inbounder",
-        label: "Inbounder"
+        label: "Inbounder",
+        cssClass: "role-inbounder"
       }
     ];
 
@@ -989,12 +1067,14 @@
 
     function normalizePlayer(player, index) {
       return {
-        id: Number.isInteger(Number(player.id))
+        id: Number.isFinite(Number(player.id))
           ? Number(player.id)
           : index,
+
         name: String(
           player.name || `Speler ${index + 1}`
         ),
+
         roles: Array.isArray(player.roles)
           ? player.roles
           : []
@@ -1002,22 +1082,17 @@
     }
 
     function normalizeMatch(match, index) {
-      const oldNumber =
-        match.matchNumber ??
-        match.number ??
-        index + 1;
-
       const matchName = String(
         match.matchName ||
         match.opponent ||
-        match.opponentName ||
-        `Tegenstander ${oldNumber}`
+        `Tegenstander ${index + 1}`
       ).trim();
 
       const schedule = Array.from(
         { length: TOTAL_PERIODS },
         (_, periodIndex) => {
-          const period = match.schedule?.[periodIndex];
+          const period =
+            match.schedule?.[periodIndex];
 
           return Array.isArray(period)
             ? period.map(Number)
@@ -1027,11 +1102,12 @@
 
       return {
         matchName,
-        matchNumber: Number(oldNumber),
+        opponent: matchName,
         available: Array.isArray(match.available)
           ? match.available.map(Number)
           : [],
-        schedule
+        schedule,
+        matchNumber: match.matchNumber || index + 1
       };
     }
 
@@ -1046,7 +1122,8 @@
 
       if (Array.isArray(data.matches)) {
         data.matches.forEach((match, index) => {
-          const normalized = normalizeMatch(match, index);
+          const normalized =
+            normalizeMatch(match, index);
 
           state.matches[normalized.matchName] =
             normalized;
@@ -1081,8 +1158,6 @@
         action: "deleteMatch",
         matchName: match.matchName,
         opponent: match.matchName,
-
-        // Voor een eventueel oud Apps Script:
         matchNumber: match.matchNumber
       });
     }
@@ -1157,6 +1232,12 @@
       )?.label || roleKey;
     }
 
+    function getRoleCssClass(roleKey) {
+      return roles.find(
+        role => role.key === roleKey
+      )?.cssClass || "role-unknown";
+    }
+
     function renderPlayers() {
       const grid =
         document.getElementById("playerGrid");
@@ -1182,8 +1263,10 @@
         nameInput.type = "text";
         nameInput.maxLength = 30;
         nameInput.value = player.name;
-        nameInput.className = "player-name-input";
-        nameInput.dataset.playerId = player.id;
+        nameInput.className =
+          "player-name-input";
+        nameInput.dataset.playerId =
+          player.id;
 
         const roleContainer =
           document.createElement("div");
@@ -1200,9 +1283,12 @@
             document.createElement("input");
 
           checkbox.type = "checkbox";
-          checkbox.className = "player-role-input";
-          checkbox.dataset.playerId = player.id;
-          checkbox.dataset.role = role.key;
+          checkbox.className =
+            "player-role-input";
+          checkbox.dataset.playerId =
+            player.id;
+          checkbox.dataset.role =
+            role.key;
           checkbox.checked =
             player.roles.includes(role.key);
 
@@ -1270,8 +1356,11 @@
       const grid =
         document.getElementById("availabilityGrid");
 
-      const matchName = getMatchName();
-      const match = state.matches[matchName];
+      const matchName =
+        getMatchName();
+
+      const match =
+        state.matches[matchName];
 
       grid.innerHTML = "";
 
@@ -1285,8 +1374,10 @@
           document.createElement("input");
 
         checkbox.type = "checkbox";
-        checkbox.className = "available-input";
-        checkbox.dataset.playerId = player.id;
+        checkbox.className =
+          "available-input";
+        checkbox.dataset.playerId =
+          player.id;
 
         checkbox.checked = match
           ? match.available.includes(
@@ -1299,12 +1390,15 @@
           !checkbox.checked
         );
 
-        checkbox.addEventListener("change", () => {
-          label.classList.toggle(
-            "unavailable",
-            !checkbox.checked
-          );
-        });
+        checkbox.addEventListener(
+          "change",
+          () => {
+            label.classList.toggle(
+              "unavailable",
+              !checkbox.checked
+            );
+          }
+        );
 
         label.append(
           checkbox,
@@ -1322,21 +1416,24 @@
         )
       ]
         .filter(input => input.checked)
-        .map(input => Number(input.dataset.playerId));
+        .map(input =>
+          Number(input.dataset.playerId)
+        );
     }
 
     function getPreviousStarts() {
       const starts =
         Array(TOTAL_PLAYERS).fill(0);
 
-      Object.values(state.matches).forEach(match => {
-        const firstPeriod =
-          match.schedule?.[0] || [];
+      Object.values(state.matches)
+        .forEach(match => {
+          const firstPeriod =
+            match.schedule?.[0] || [];
 
-        firstPeriod.forEach(playerId => {
-          starts[playerId]++;
+          firstPeriod.forEach(playerId => {
+            starts[playerId]++;
+          });
         });
-      });
 
       return starts;
     }
@@ -1345,14 +1442,15 @@
       const minutes =
         Array(TOTAL_PLAYERS).fill(0);
 
-      Object.values(state.matches).forEach(match => {
-        match.schedule?.forEach(period => {
-          period.forEach(playerId => {
-            minutes[playerId] +=
-              MINUTES_PER_PERIOD;
+      Object.values(state.matches)
+        .forEach(match => {
+          match.schedule?.forEach(period => {
+            period.forEach(playerId => {
+              minutes[playerId] +=
+                MINUTES_PER_PERIOD;
+            });
           });
         });
-      });
 
       return minutes;
     }
@@ -1468,6 +1566,24 @@
       }
 
       return assign(0, new Set(), []);
+    }
+
+    function getRoleAssignmentMap(group) {
+      const assignment =
+        findRoleAssignment(group);
+
+      const map = {};
+
+      if (!assignment) {
+        return map;
+      }
+
+      assignment.forEach(item => {
+        map[Number(item.playerId)] =
+          item.role;
+      });
+
+      return map;
     }
 
     function validatePeriod(group) {
@@ -1647,12 +1763,24 @@
         return;
       }
 
+      /*
+       * Alleen beschikbare spelers verschijnen
+       * in het schema.
+       */
+      const availablePlayers =
+        state.players.filter(player =>
+          match.available.includes(
+            Number(player.id)
+          )
+        );
+
       const periodHeaders =
         Array.from(
           { length: TOTAL_PERIODS },
           (_, periodIndex) => `
             <th>
               P${periodIndex + 1}
+
               <span
                 class="board-count"
                 data-count-period="${periodIndex}"
@@ -1664,68 +1792,95 @@
         ).join("");
 
       const rows =
-        state.players.map((player, playerIndex) => {
-          const cells =
-            Array.from(
-              { length: TOTAL_PERIODS },
-              (_, periodIndex) => {
-                const playing =
-                  isPlayerPlaying(
-                    match,
-                    periodIndex,
-                    player.id
-                  );
+        availablePlayers
+          .map(player => {
+            const cells =
+              Array.from(
+                { length: TOTAL_PERIODS },
+                (_, periodIndex) => {
+                  const group =
+                    match.schedule?.[periodIndex] || [];
 
-                return `
-                  <td>
-                    <button
-                      type="button"
-                      class="board-toggle ${
-                        playing
-                          ? "is-playing"
-                          : ""
-                      }"
-                      data-period-index="${periodIndex}"
-                      data-player-id="${player.id}"
-                      aria-pressed="${playing}"
-                      title="${
-                        playing
-                          ? "Speler uitzetten"
-                          : "Speler aanzetten"
-                      }"
-                    >
-                      ${playing ? "AAN" : "UIT"}
-                    </button>
-                  </td>
-                `;
-              }
-            ).join("");
+                  const playing =
+                    isPlayerPlaying(
+                      match,
+                      periodIndex,
+                      player.id
+                    );
 
-          return `
-            <tr>
-              <td>
-                <div class="board-player-name">
-                  <span class="board-player-number">
-                    ${playerIndex + 1}
-                  </span>
-                  ${escapeHtml(player.name)}
-                </div>
-              </td>
-              ${cells}
-            </tr>
-          `;
-        }).join("");
+                  const roleMap =
+                    getRoleAssignmentMap(group);
+
+                  const role =
+                    roleMap[player.id] || "";
+
+                  const roleClass =
+                    role
+                      ? getRoleCssClass(role)
+                      : "role-unknown";
+
+                  return `
+                    <td>
+                      <button
+                        type="button"
+                        class="
+                          board-toggle
+                          ${playing ? "is-playing" : ""}
+                          ${playing ? roleClass : ""}
+                        "
+                        data-period-index="${periodIndex}"
+                        data-player-id="${player.id}"
+                        data-role="${role}"
+                        aria-pressed="${playing}"
+                        title="${
+                          playing
+                            ? "Speler uitzetten"
+                            : "Speler aanzetten"
+                        }"
+                      >
+                        ${playing ? "AAN" : "UIT"}
+                      </button>
+                    </td>
+                  `;
+                }
+              ).join("");
+
+            const playerIndex =
+              state.players.findIndex(
+                item =>
+                  Number(item.id) ===
+                  Number(player.id)
+              );
+
+            return `
+              <tr>
+                <td>
+                  <div class="board-player-name">
+                    <span class="board-player-number">
+                      ${playerIndex + 1}
+                    </span>
+
+                    ${escapeHtml(player.name)}
+                  </div>
+                </td>
+
+                ${cells}
+              </tr>
+            `;
+          })
+          .join("");
 
       const periodNames =
         match.schedule
           .map((group, periodIndex) => {
-            const names = group
-              .map(playerId =>
-                escapeHtml(
-                  getPlayerName(playerId)
+            const names =
+              group
+                .map(playerId =>
+                  escapeHtml(
+                    getPlayerName(playerId)
+                  )
                 )
-              )
-              .join(", ");
+                .join(", ");
 
             return `
               <div>
@@ -1739,10 +1894,6 @@
           .join("");
 
       container.innerHTML = `
-        <h3>
-          Spelers per periode
-        </h3>
-
         <div class="planner-board-wrapper">
           <table class="planner-board">
             <thead>
@@ -1891,7 +2042,6 @@
 
       const updatedMatch = {
         ...match,
-        matchName,
         schedule
       };
 
@@ -1928,9 +2078,6 @@
       const title =
         document.getElementById("scheduleTitle");
 
-      const body =
-        document.getElementById("scheduleBody");
-
       if (!match) {
         card.classList.add("hidden");
         return;
@@ -1943,134 +2090,6 @@
         <span class="step">✓</span>
         Schema tegen ${escapeHtml(matchName)}
       `;
-
-      body.innerHTML = "";
-
-      match.schedule.forEach(
-        (group, periodIndex) => {
-          const row =
-            document.createElement("tr");
-
-          const periodCell =
-            document.createElement("td");
-
-          periodCell.innerHTML =
-            `<strong>Periode ${
-              periodIndex + 1
-            }</strong>`;
-
-          const playersCell =
-            document.createElement("td");
-
-          const editor =
-            document.createElement("div");
-
-          editor.className =
-            "period-editor";
-
-          group.forEach(playerId => {
-            const select =
-              document.createElement("select");
-
-            const otherPlayers =
-              group.filter(otherId =>
-                Number(otherId) !==
-                Number(playerId)
-              );
-
-            match.available.forEach(
-              candidateId => {
-                const option =
-                  document.createElement("option");
-
-                option.value =
-                  candidateId;
-
-                option.textContent =
-                  getPlayerName(candidateId);
-
-                option.selected =
-                  Number(candidateId) ===
-                  Number(playerId);
-
-                option.disabled =
-                  otherPlayers
-                    .map(Number)
-                    .includes(
-                      Number(candidateId)
-                    );
-
-                select.appendChild(option);
-              }
-            );
-
-            editor.appendChild(select);
-          });
-
-          playersCell.appendChild(editor);
-
-          const roleCell =
-            document.createElement("td");
-
-          roleCell.innerHTML = `
-            <div class="role-counts">
-              <span>2× Dribbelaar</span>
-              <span>2× Runner</span>
-              <span>1× Inbounder</span>
-            </div>
-          `;
-
-          const minutesCell =
-            document.createElement("td");
-
-          minutesCell.textContent =
-            "4 minuten per speler";
-
-          const actionCell =
-            document.createElement("td");
-
-          const saveButton =
-            document.createElement("button");
-
-          saveButton.className =
-            "primary small-button";
-
-          saveButton.textContent =
-            "Opslaan";
-
-          saveButton.addEventListener(
-            "click",
-            () => {
-              const selectedPlayers =
-                [
-                  ...editor.querySelectorAll(
-                    "select"
-                  )
-                ].map(select =>
-                  Number(select.value)
-                );
-
-              savePeriodChanges(
-                matchName,
-                periodIndex,
-                selectedPlayers
-              );
-            }
-          );
-
-          actionCell.appendChild(saveButton);
-
-          row.append(
-            periodCell,
-            playersCell,
-            roleCell,
-            minutesCell,
-            actionCell
-          );
-
-          body.appendChild(row);
-        }
-      );
 
       renderBoard(matchName);
       renderBalanceMessage(matchName);
@@ -2154,49 +2173,6 @@
       }
 
       container.appendChild(message);
-    }
-
-    async function savePeriodChanges(
-      matchName,
-      periodIndex,
-      selectedPlayers
-    ) {
-      const match =
-        state.matches[matchName];
-
-      const validation =
-        validatePeriod(selectedPlayers);
-
-      if (!validation.valid) {
-        showMessage(
-          validation.message,
-          "error"
-        );
-
-        renderSchedule(matchName);
-        return;
-      }
-
-      match.schedule[periodIndex] =
-        selectedPlayers;
-
-      try {
-        await saveMatchToSheet(match);
-
-        renderSchedule(matchName);
-        renderStats();
-        renderMatches();
-
-        showMessage(
-          `Periode ${periodIndex + 1} tegen ` +
-          `${matchName} is opgeslagen.`
-        );
-      } catch (error) {
-        showMessage(
-          `Opslaan mislukt: ${error.message}`,
-          "error"
-        );
-      }
     }
 
     function countStarts() {
@@ -2532,6 +2508,7 @@
 
         const match = {
           matchName,
+          opponent: matchName,
           matchNumber:
             oldMatch?.matchNumber || null,
           available: availablePlayers,
