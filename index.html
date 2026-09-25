@@ -12,7 +12,6 @@
       --black: #171717;
       --text: #292929;
       --muted: #707070;
-      --background: #fffafa;
       --card: rgba(255,255,255,.96);
       --light-red: #fff1f1;
       --border: #ead4d4;
@@ -213,7 +212,6 @@
     }
 
     input[type="text"],
-    input[type="number"],
     select {
       width: 100%;
       padding: 11px 12px;
@@ -426,21 +424,10 @@
       white-space: nowrap;
     }
 
-    .chips,
     .match-actions {
       display: flex;
       flex-wrap: wrap;
       gap: 6px;
-    }
-
-    .chip {
-      padding: 5px 9px;
-      color: var(--dark-red);
-      background: var(--light-red);
-      border: 1px solid #efc8c8;
-      border-radius: 999px;
-      font-size: .79rem;
-      font-weight: bold;
     }
 
     .role-counts {
@@ -748,8 +735,15 @@
 
       <div class="grid grid-two">
         <div>
-          <label for="matchNumber">Wedstrijdnummer</label>
-          <input id="matchNumber" type="number" min="1" max="20" value="1">
+          <label for="matchName">Tegenstander</label>
+          <input
+            id="matchName"
+            type="text"
+            value="Tegenstander 1"
+            placeholder="Bijvoorbeeld: De Zwarte Schapen"
+            maxlength="60"
+            autocomplete="off"
+          >
         </div>
 
         <div class="notice">
@@ -874,7 +868,7 @@
         <table>
           <thead>
             <tr>
-              <th>Wedstrijd</th>
+              <th>Tegenstander</th>
               <th>Beschikbaar</th>
               <th>Niet beschikbaar</th>
               <th>Acties</th>
@@ -901,12 +895,20 @@
     const TOTAL_PERIODS = 8;
     const PLAYERS_ON_COURT = 5;
     const MINUTES_PER_PERIOD = 4;
-    const MAX_MATCHES = 20;
 
     const roles = [
-      { key: "dribbler", label: "Dribbelaar" },
-      { key: "runner", label: "Runner" },
-      { key: "inbounder", label: "Inbounder" }
+      {
+        key: "dribbler",
+        label: "Dribbelaar"
+      },
+      {
+        key: "runner",
+        label: "Runner"
+      },
+      {
+        key: "inbounder",
+        label: "Inbounder"
+      }
     ];
 
     const defaultNames = [
@@ -943,7 +945,9 @@
       const data = await response.json();
 
       if (data.ok === false) {
-        throw new Error(data.error || "Fout in Google Sheets.");
+        throw new Error(
+          data.error || "Fout in Google Sheets."
+        );
       }
 
       return data;
@@ -967,31 +971,12 @@
       const data = await response.json();
 
       if (data.ok === false) {
-        throw new Error(data.error || "Fout in Google Sheets.");
+        throw new Error(
+          data.error || "Fout in Google Sheets."
+        );
       }
 
       return data;
-    }
-
-    async function loadSharedData() {
-      const data = await apiGet("loadData");
-
-      state.players = Array.isArray(data.players)
-        ? data.players.map(normalizePlayer)
-        : [];
-
-      state.matches = {};
-
-      if (Array.isArray(data.matches)) {
-        data.matches.forEach(match => {
-          const normalized = normalizeMatch(match);
-          state.matches[normalized.matchNumber] = normalized;
-        });
-      }
-
-      if (!state.players.length) {
-        state.players = createDefaultPlayers();
-      }
     }
 
     function createDefaultPlayers() {
@@ -1007,18 +992,33 @@
         id: Number.isInteger(Number(player.id))
           ? Number(player.id)
           : index,
-        name: String(player.name || `Speler ${index + 1}`),
+        name: String(
+          player.name || `Speler ${index + 1}`
+        ),
         roles: Array.isArray(player.roles)
           ? player.roles
           : []
       };
     }
 
-    function normalizeMatch(match) {
+    function normalizeMatch(match, index) {
+      const oldNumber =
+        match.matchNumber ??
+        match.number ??
+        index + 1;
+
+      const matchName = String(
+        match.matchName ||
+        match.opponent ||
+        match.opponentName ||
+        `Tegenstander ${oldNumber}`
+      ).trim();
+
       const schedule = Array.from(
         { length: TOTAL_PERIODS },
         (_, periodIndex) => {
           const period = match.schedule?.[periodIndex];
+
           return Array.isArray(period)
             ? period.map(Number)
             : [];
@@ -1026,12 +1026,36 @@
       );
 
       return {
-        matchNumber: Number(match.matchNumber),
+        matchName,
+        matchNumber: Number(oldNumber),
         available: Array.isArray(match.available)
           ? match.available.map(Number)
           : [],
         schedule
       };
+    }
+
+    async function loadSharedData() {
+      const data = await apiGet("loadData");
+
+      state.players = Array.isArray(data.players)
+        ? data.players.map(normalizePlayer)
+        : [];
+
+      state.matches = {};
+
+      if (Array.isArray(data.matches)) {
+        data.matches.forEach((match, index) => {
+          const normalized = normalizeMatch(match, index);
+
+          state.matches[normalized.matchName] =
+            normalized;
+        });
+      }
+
+      if (!state.players.length) {
+        state.players = createDefaultPlayers();
+      }
     }
 
     async function savePlayersToSheet() {
@@ -1044,14 +1068,22 @@
     async function saveMatchToSheet(match) {
       return apiPost({
         action: "saveMatch",
-        match
+        match: {
+          ...match,
+          matchName: match.matchName,
+          opponent: match.matchName
+        }
       });
     }
 
-    async function deleteMatchFromSheet(matchNumber) {
+    async function deleteMatchFromSheet(match) {
       return apiPost({
         action: "deleteMatch",
-        matchNumber
+        matchName: match.matchName,
+        opponent: match.matchName,
+
+        // Voor een eventueel oud Apps Script:
+        matchNumber: match.matchNumber
       });
     }
 
@@ -1061,11 +1093,30 @@
       });
     }
 
+    function getMatchName() {
+      const input =
+        document.getElementById("matchName");
+
+      const value = input.value.trim();
+      const name = value || "Tegenstander 1";
+
+      input.value = name;
+
+      return name;
+    }
+
+    function setMatchName(name) {
+      document.getElementById("matchName").value =
+        name || "";
+    }
+
     function showMessage(text, type = "success") {
-      const element = document.getElementById("message");
+      const element =
+        document.getElementById("message");
 
       element.textContent = text;
-      element.className = `message show ${type}`;
+      element.className =
+        `message show ${type}`;
 
       setTimeout(() => {
         element.className = "message";
@@ -1090,7 +1141,8 @@
 
     function getPlayer(playerId) {
       return state.players.find(
-        player => Number(player.id) === Number(playerId)
+        player =>
+          Number(player.id) === Number(playerId)
       );
     }
 
@@ -1100,41 +1152,59 @@
     }
 
     function getRoleLabel(roleKey) {
-      return roles.find(role => role.key === roleKey)?.label || roleKey;
+      return roles.find(
+        role => role.key === roleKey
+      )?.label || roleKey;
     }
 
     function renderPlayers() {
-      const grid = document.getElementById("playerGrid");
+      const grid =
+        document.getElementById("playerGrid");
+
       grid.innerHTML = "";
 
       state.players.forEach((player, index) => {
-        const card = document.createElement("div");
+        const card =
+          document.createElement("div");
+
         card.className = "player-card";
 
-        const number = document.createElement("div");
-        number.className = "player-number";
-        number.innerHTML = `<span>${index + 1}</span> Speler`;
+        const number =
+          document.createElement("div");
 
-        const nameInput = document.createElement("input");
+        number.className = "player-number";
+        number.innerHTML =
+          `<span>${index + 1}</span> Speler`;
+
+        const nameInput =
+          document.createElement("input");
+
         nameInput.type = "text";
         nameInput.maxLength = 30;
         nameInput.value = player.name;
         nameInput.className = "player-name-input";
         nameInput.dataset.playerId = player.id;
 
-        const roleContainer = document.createElement("div");
+        const roleContainer =
+          document.createElement("div");
+
         roleContainer.className = "roles";
 
         roles.forEach(role => {
-          const label = document.createElement("label");
+          const label =
+            document.createElement("label");
+
           label.className = "role";
 
-          const checkbox = document.createElement("input");
+          const checkbox =
+            document.createElement("input");
+
           checkbox.type = "checkbox";
           checkbox.className = "player-role-input";
           checkbox.dataset.playerId = player.id;
           checkbox.dataset.role = role.key;
-          checkbox.checked = player.roles.includes(role.key);
+          checkbox.checked =
+            player.roles.includes(role.key);
 
           label.append(
             checkbox,
@@ -1144,7 +1214,12 @@
           roleContainer.appendChild(label);
         });
 
-        card.append(number, nameInput, roleContainer);
+        card.append(
+          number,
+          nameInput,
+          roleContainer
+        );
+
         grid.appendChild(card);
       });
     }
@@ -1153,71 +1228,70 @@
       document
         .querySelectorAll(".player-name-input")
         .forEach(input => {
-          const player = getPlayer(input.dataset.playerId);
+          const player =
+            getPlayer(input.dataset.playerId);
 
           if (player) {
             player.name =
               input.value.trim() ||
-              `Speler ${Number(input.dataset.playerId) + 1}`;
+              `Speler ${
+                Number(input.dataset.playerId) + 1
+              }`;
           }
         });
 
       document
         .querySelectorAll(".player-role-input")
         .forEach(input => {
-          const player = getPlayer(input.dataset.playerId);
+          const player =
+            getPlayer(input.dataset.playerId);
 
           if (!player) return;
 
           const role = input.dataset.role;
 
-          if (input.checked && !player.roles.includes(role)) {
+          if (
+            input.checked &&
+            !player.roles.includes(role)
+          ) {
             player.roles.push(role);
           }
 
           if (!input.checked) {
             player.roles = player.roles.filter(
-              existingRole => existingRole !== role
+              existingRole =>
+                existingRole !== role
             );
           }
         });
     }
 
-    function getMatchNumber() {
-      const input = document.getElementById("matchNumber");
-
-      let number = Number(input.value);
-
-      if (!Number.isInteger(number) || number < 1) {
-        number = 1;
-      }
-
-      if (number > MAX_MATCHES) {
-        number = MAX_MATCHES;
-      }
-
-      input.value = number;
-      return number;
-    }
-
     function renderAvailability() {
-      const grid = document.getElementById("availabilityGrid");
-      const matchNumber = getMatchNumber();
-      const match = state.matches[matchNumber];
+      const grid =
+        document.getElementById("availabilityGrid");
+
+      const matchName = getMatchName();
+      const match = state.matches[matchName];
 
       grid.innerHTML = "";
 
       state.players.forEach(player => {
-        const label = document.createElement("label");
+        const label =
+          document.createElement("label");
+
         label.className = "availability";
 
-        const checkbox = document.createElement("input");
+        const checkbox =
+          document.createElement("input");
+
         checkbox.type = "checkbox";
         checkbox.className = "available-input";
         checkbox.dataset.playerId = player.id;
 
         checkbox.checked = match
-          ? match.available.includes(Number(player.id))
+          ? match.available.includes(
+              Number(player.id)
+            )
           : true;
 
         label.classList.toggle(
@@ -1242,16 +1316,22 @@
     }
 
     function getAvailablePlayers() {
-      return [...document.querySelectorAll(".available-input")]
+      return [
+        ...document.querySelectorAll(
+          ".available-input"
+        )
+      ]
         .filter(input => input.checked)
         .map(input => Number(input.dataset.playerId));
     }
 
     function getPreviousStarts() {
-      const starts = Array(TOTAL_PLAYERS).fill(0);
+      const starts =
+        Array(TOTAL_PLAYERS).fill(0);
 
       Object.values(state.matches).forEach(match => {
-        const firstPeriod = match.schedule?.[0] || [];
+        const firstPeriod =
+          match.schedule?.[0] || [];
 
         firstPeriod.forEach(playerId => {
           starts[playerId]++;
@@ -1262,12 +1342,14 @@
     }
 
     function getPreviousMinutes() {
-      const minutes = Array(TOTAL_PLAYERS).fill(0);
+      const minutes =
+        Array(TOTAL_PLAYERS).fill(0);
 
       Object.values(state.matches).forEach(match => {
         match.schedule?.forEach(period => {
           period.forEach(playerId => {
-            minutes[playerId] += MINUTES_PER_PERIOD;
+            minutes[playerId] +=
+              MINUTES_PER_PERIOD;
           });
         });
       });
@@ -1276,7 +1358,11 @@
     }
 
     function getSpecialPlayerIds() {
-      const specialNames = ["lucas", "guus", "sander"];
+      const specialNames = [
+        "lucas",
+        "guus",
+        "sander"
+      ];
 
       return state.players
         .filter(player =>
@@ -1288,11 +1374,14 @@
     }
 
     function containsForbiddenTriple(group) {
-      const specialIds = getSpecialPlayerIds();
+      const specialIds =
+        getSpecialPlayerIds();
+
+      const numbers = group.map(Number);
 
       return specialIds.length === 3 &&
-        specialIds.every(playerId =>
-          group.map(Number).includes(Number(playerId))
+        specialIds.every(id =>
+          numbers.includes(id)
         );
     }
 
@@ -1305,7 +1394,11 @@
           return;
         }
 
-        for (let index = start; index < items.length; index++) {
+        for (
+          let index = start;
+          index < items.length;
+          index++
+        ) {
           current.push(items[index]);
           build(index + 1, current);
           current.pop();
@@ -1326,18 +1419,29 @@
       ];
 
       function assign(roleIndex, used, result) {
-        if (roleIndex === requiredRoles.length) {
+        if (
+          roleIndex === requiredRoles.length
+        ) {
           return result;
         }
 
-        const requiredRole = requiredRoles[roleIndex];
+        const requiredRole =
+          requiredRoles[roleIndex];
 
-        for (let index = 0; index < group.length; index++) {
+        for (
+          let index = 0;
+          index < group.length;
+          index++
+        ) {
           if (used.has(index)) continue;
 
-          const player = getPlayer(group[index]);
+          const player =
+            getPlayer(group[index]);
 
-          if (!player || !player.roles.includes(requiredRole)) {
+          if (
+            !player ||
+            !player.roles.includes(requiredRole)
+          ) {
             continue;
           }
 
@@ -1367,14 +1471,21 @@
     }
 
     function validatePeriod(group) {
-      if (!Array.isArray(group) || group.length !== 5) {
+      if (
+        !Array.isArray(group) ||
+        group.length !== PLAYERS_ON_COURT
+      ) {
         return {
           valid: false,
-          message: "Elke periode moet precies 5 spelers hebben."
+          message:
+            "Elke periode moet precies 5 spelers hebben."
         };
       }
 
-      if (new Set(group.map(Number)).size !== 5) {
+      if (
+        new Set(group.map(Number)).size !==
+        PLAYERS_ON_COURT
+      ) {
         return {
           valid: false,
           message:
@@ -1399,7 +1510,9 @@
         };
       }
 
-      return { valid: true };
+      return {
+        valid: true
+      };
     }
 
     function scoreGroup(
@@ -1413,26 +1526,39 @@
 
       group.forEach(playerId => {
         if (periodIndex === 0) {
-          score -= previousStarts[playerId] * 100;
+          score -=
+            previousStarts[playerId] * 100;
         }
 
-        score -= currentPeriods[playerId] * 25;
-        score -= previousMinutes[playerId] * .04;
+        score -=
+          currentPeriods[playerId] * 25;
+
+        score -=
+          previousMinutes[playerId] * .04;
       });
 
       return score + Math.random() * 2;
     }
 
     function generateSchedule(availablePlayers) {
-      if (availablePlayers.length < PLAYERS_ON_COURT) {
+      if (
+        availablePlayers.length <
+        PLAYERS_ON_COURT
+      ) {
         throw new Error(
           "Er moeten minimaal 5 spelers beschikbaar zijn."
         );
       }
 
-      const previousStarts = getPreviousStarts();
-      const previousMinutes = getPreviousMinutes();
-      const currentPeriods = Array(TOTAL_PLAYERS).fill(0);
+      const previousStarts =
+        getPreviousStarts();
+
+      const previousMinutes =
+        getPreviousMinutes();
+
+      const currentPeriods =
+        Array(TOTAL_PLAYERS).fill(0);
+
       const schedule = [];
 
       for (
@@ -1440,12 +1566,17 @@
         periodIndex < TOTAL_PERIODS;
         periodIndex++
       ) {
-        const possibleGroups = getCombinations(
-          availablePlayers,
-          PLAYERS_ON_COURT
-        )
-          .filter(group => !containsForbiddenTriple(group))
-          .filter(group => Boolean(findRoleAssignment(group)));
+        const possibleGroups =
+          getCombinations(
+            availablePlayers,
+            PLAYERS_ON_COURT
+          )
+            .filter(group =>
+              !containsForbiddenTriple(group)
+            )
+            .filter(group =>
+              Boolean(findRoleAssignment(group))
+            );
 
         if (!possibleGroups.length) {
           throw new Error(
@@ -1456,131 +1587,161 @@
         }
 
         possibleGroups.sort((a, b) => {
-          const scoreA = scoreGroup(
-            a,
-            periodIndex,
-            currentPeriods,
-            previousStarts,
-            previousMinutes
-          );
+          const scoreA =
+            scoreGroup(
+              a,
+              periodIndex,
+              currentPeriods,
+              previousStarts,
+              previousMinutes
+            );
 
-          const scoreB = scoreGroup(
-            b,
-            periodIndex,
-            currentPeriods,
-            previousStarts,
-            previousMinutes
-          );
+          const scoreB =
+            scoreGroup(
+              b,
+              periodIndex,
+              currentPeriods,
+              previousStarts,
+              previousMinutes
+            );
 
           return scoreB - scoreA;
         });
 
-        const selected = possibleGroups[0];
+        const selected =
+          possibleGroups[0];
 
         selected.forEach(playerId => {
           currentPeriods[playerId]++;
         });
 
-        schedule.push(selected.map(Number));
+        schedule.push(
+          selected.map(Number)
+        );
       }
 
       return schedule;
     }
 
-    function isPlayerPlaying(match, periodIndex, playerId) {
-      return (match.schedule?.[periodIndex] || [])
-        .some(id => Number(id) === Number(playerId));
+    function isPlayerPlaying(
+      match,
+      periodIndex,
+      playerId
+    ) {
+      return (
+        match.schedule?.[periodIndex] || []
+      ).some(id =>
+        Number(id) === Number(playerId)
+      );
     }
 
-    function renderBoard(matchNumber) {
-      const container = document.getElementById("plannerBoard");
-      const match = state.matches[matchNumber];
+    function renderBoard(matchName) {
+      const container =
+        document.getElementById("plannerBoard");
+
+      const match =
+        state.matches[matchName];
 
       if (!match) {
         container.innerHTML = "";
         return;
       }
 
-      const periodHeaders = Array.from(
-        { length: TOTAL_PERIODS },
-        (_, periodIndex) => `
-          <th>
-            P${periodIndex + 1}
-            <span
-              class="board-count"
-              data-count-period="${periodIndex}"
-            >
-              0/5
-            </span>
-          </th>
-        `
-      ).join("");
-
-      const rows = state.players.map((player, playerIndex) => {
-        const cells = Array.from(
+      const periodHeaders =
+        Array.from(
           { length: TOTAL_PERIODS },
-          (_, periodIndex) => {
-            const playing = isPlayerPlaying(
-              match,
-              periodIndex,
-              player.id
-            );
-
-            return `
-              <td>
-                <button
-                  type="button"
-                  class="board-toggle ${
-                    playing ? "is-playing" : ""
-                  }"
-                  data-period-index="${periodIndex}"
-                  data-player-id="${player.id}"
-                  aria-pressed="${playing}"
-                  title="${
-                    playing
-                      ? "Speler uitzetten"
-                      : "Speler aanzetten"
-                  }"
-                >
-                  ${playing ? "AAN" : "UIT"}
-                </button>
-              </td>
-            `;
-          }
+          (_, periodIndex) => `
+            <th>
+              P${periodIndex + 1}
+              <span
+                class="board-count"
+                data-count-period="${periodIndex}"
+              >
+                0/5
+              </span>
+            </th>
+          `
         ).join("");
 
-        return `
-          <tr>
-            <td>
-              <div class="board-player-name">
-                <span class="board-player-number">
-                  ${playerIndex + 1}
-                </span>
-                ${escapeHtml(player.name)}
-              </div>
-            </td>
-            ${cells}
-          </tr>
-        `;
-      }).join("");
+      const rows =
+        state.players.map((player, playerIndex) => {
+          const cells =
+            Array.from(
+              { length: TOTAL_PERIODS },
+              (_, periodIndex) => {
+                const playing =
+                  isPlayerPlaying(
+                    match,
+                    periodIndex,
+                    player.id
+                  );
 
-      const periodNames = match.schedule
-        .map((group, periodIndex) => {
-          const names = group
-            .map(playerId => escapeHtml(getPlayerName(playerId)))
-            .join(", ");
+                return `
+                  <td>
+                    <button
+                      type="button"
+                      class="board-toggle ${
+                        playing
+                          ? "is-playing"
+                          : ""
+                      }"
+                      data-period-index="${periodIndex}"
+                      data-player-id="${player.id}"
+                      aria-pressed="${playing}"
+                      title="${
+                        playing
+                          ? "Speler uitzetten"
+                          : "Speler aanzetten"
+                      }"
+                    >
+                      ${playing ? "AAN" : "UIT"}
+                    </button>
+                  </td>
+                `;
+              }
+            ).join("");
 
           return `
-            <div>
-              <strong>Periode ${periodIndex + 1}:</strong>
-              ${names || "Geen spelers"}
-            </div>
+            <tr>
+              <td>
+                <div class="board-player-name">
+                  <span class="board-player-number">
+                    ${playerIndex + 1}
+                  </span>
+                  ${escapeHtml(player.name)}
+                </div>
+              </td>
+              ${cells}
+            </tr>
           `;
-        })
-        .join("");
+        }).join("");
+
+      const periodNames =
+        match.schedule
+          .map((group, periodIndex) => {
+            const names = group
+              .map(playerId =>
+                escapeHtml(
+                  getPlayerName(playerId)
+                )
+              )
+              .join(", ");
+
+            return `
+              <div>
+                <strong>
+                  Periode ${periodIndex + 1}:
+                </strong>
+                ${names || "Geen spelers"}
+              </div>
+            `;
+          })
+          .join("");
 
       container.innerHTML = `
-        <h3>Spelers per periode</h3>
+        <h3>
+          Spelers per periode
+        </h3>
 
         <div class="planner-board-wrapper">
           <table class="planner-board">
@@ -1590,6 +1751,7 @@
                 ${periodHeaders}
               </tr>
             </thead>
+
             <tbody>
               ${rows}
             </tbody>
@@ -1604,46 +1766,65 @@
       container
         .querySelectorAll(".board-toggle")
         .forEach(button => {
-          button.addEventListener("click", () => {
-            button.classList.toggle("is-playing");
+          button.addEventListener(
+            "click",
+            () => {
+              button.classList.toggle(
+                "is-playing"
+              );
 
-            const playing =
-              button.classList.contains("is-playing");
+              const playing =
+                button.classList.contains(
+                  "is-playing"
+                );
 
-            button.textContent = playing ? "AAN" : "UIT";
-            button.setAttribute("aria-pressed", playing);
-            button.title = playing
-              ? "Speler uitzetten"
-              : "Speler aanzetten";
+              button.textContent =
+                playing ? "AAN" : "UIT";
 
-            updateBoardCounts();
-          });
+              button.setAttribute(
+                "aria-pressed",
+                playing
+              );
+
+              button.title = playing
+                ? "Speler uitzetten"
+                : "Speler aanzetten";
+
+              updateBoardCounts();
+            }
+          );
         });
 
       updateBoardCounts();
     }
 
     function updateBoardCounts() {
-      const container = document.getElementById("plannerBoard");
+      const container =
+        document.getElementById("plannerBoard");
 
       for (
         let periodIndex = 0;
         periodIndex < TOTAL_PERIODS;
         periodIndex++
       ) {
-        const count = container.querySelectorAll(
-          `.board-toggle[data-period-index="${periodIndex}"]` +
-          `.is-playing`
-        ).length;
+        const count =
+          container.querySelectorAll(
+            `.board-toggle[data-period-index="${periodIndex}"].is-playing`
+          ).length;
 
-        const countElement = container.querySelector(
-          `[data-count-period="${periodIndex}"]`
-        );
+        const countElement =
+          container.querySelector(
+            `[data-count-period="${periodIndex}"]`
+          );
 
         if (countElement) {
-          countElement.textContent = `${count}/5`;
+          countElement.textContent =
+            `${count}/5`;
+
           countElement.style.color =
-            count === 5 ? "var(--green)" : "var(--red)";
+            count === 5
+              ? "var(--green)"
+              : "var(--red)";
         }
       }
     }
@@ -1658,29 +1839,34 @@
       ) {
         schedule[periodIndex] = [
           ...document.querySelectorAll(
-            `.board-toggle[data-period-index="${periodIndex}"]` +
-            `.is-playing`
+            `.board-toggle[data-period-index="${periodIndex}"].is-playing`
           )
-        ].map(button => Number(button.dataset.playerId));
+        ].map(button =>
+          Number(button.dataset.playerId)
+        );
       }
 
       return schedule;
     }
 
     async function saveBoard() {
-      const matchNumber = getMatchNumber();
-      const match = state.matches[matchNumber];
+      const matchName =
+        getMatchName();
+
+      const match =
+        state.matches[matchName];
 
       if (!match) {
         showMessage(
-          `Er is geen schema voor wedstrijd ${matchNumber}.`,
+          `Er is geen schema voor ${matchName}.`,
           "error"
         );
 
         return;
       }
 
-      const schedule = getBoardScheduleFromScreen();
+      const schedule =
+        getBoardScheduleFromScreen();
 
       for (
         let periodIndex = 0;
@@ -1688,11 +1874,14 @@
         periodIndex++
       ) {
         const validation =
-          validatePeriod(schedule[periodIndex]);
+          validatePeriod(
+            schedule[periodIndex]
+          );
 
         if (!validation.valid) {
           showMessage(
-            `Periode ${periodIndex + 1}: ${validation.message}`,
+            `Periode ${periodIndex + 1}: ` +
+            validation.message,
             "error"
           );
 
@@ -1702,20 +1891,24 @@
 
       const updatedMatch = {
         ...match,
+        matchName,
         schedule
       };
 
       try {
-        await saveMatchToSheet(updatedMatch);
+        await saveMatchToSheet(
+          updatedMatch
+        );
 
-        state.matches[matchNumber] = updatedMatch;
+        state.matches[matchName] =
+          updatedMatch;
 
-        renderSchedule(matchNumber);
+        renderSchedule(matchName);
         renderStats();
         renderMatches();
 
         showMessage(
-          `Het schema van wedstrijd ${matchNumber} is opgeslagen.`
+          `Het schema tegen ${matchName} is opgeslagen.`
         );
       } catch (error) {
         showMessage(
@@ -1725,11 +1918,18 @@
       }
     }
 
-    function renderSchedule(matchNumber) {
-      const match = state.matches[matchNumber];
-      const card = document.getElementById("scheduleCard");
-      const title = document.getElementById("scheduleTitle");
-      const body = document.getElementById("scheduleBody");
+    function renderSchedule(matchName) {
+      const match =
+        state.matches[matchName];
+
+      const card =
+        document.getElementById("scheduleCard");
+
+      const title =
+        document.getElementById("scheduleTitle");
+
+      const body =
+        document.getElementById("scheduleBody");
 
       if (!match) {
         card.classList.add("hidden");
@@ -1741,103 +1941,161 @@
 
       title.innerHTML = `
         <span class="step">✓</span>
-        Schema wedstrijd ${matchNumber}
+        Schema tegen ${escapeHtml(matchName)}
       `;
 
       body.innerHTML = "";
 
-      match.schedule.forEach((group, periodIndex) => {
-        const row = document.createElement("tr");
+      match.schedule.forEach(
+        (group, periodIndex) => {
+          const row =
+            document.createElement("tr");
 
-        const periodCell = document.createElement("td");
-        periodCell.innerHTML =
-          `<strong>Periode ${periodIndex + 1}</strong>`;
+          const periodCell =
+            document.createElement("td");
 
-        const playersCell = document.createElement("td");
-        const editor = document.createElement("div");
-        editor.className = "period-editor";
+          periodCell.innerHTML =
+            `<strong>Periode ${
+              periodIndex + 1
+            }</strong>`;
 
-        group.forEach(playerId => {
-          const select = document.createElement("select");
+          const playersCell =
+            document.createElement("td");
 
-          const otherPlayers = group.filter(
-            otherId => Number(otherId) !== Number(playerId)
-          );
+          const editor =
+            document.createElement("div");
 
-          match.available.forEach(candidateId => {
-            const option = document.createElement("option");
+          editor.className =
+            "period-editor";
 
-            option.value = candidateId;
-            option.textContent = getPlayerName(candidateId);
-            option.selected =
-              Number(candidateId) === Number(playerId);
-            option.disabled =
-              otherPlayers.map(Number).includes(Number(candidateId));
+          group.forEach(playerId => {
+            const select =
+              document.createElement("select");
 
-            select.appendChild(option);
+            const otherPlayers =
+              group.filter(otherId =>
+                Number(otherId) !==
+                Number(playerId)
+              );
+
+            match.available.forEach(
+              candidateId => {
+                const option =
+                  document.createElement("option");
+
+                option.value =
+                  candidateId;
+
+                option.textContent =
+                  getPlayerName(candidateId);
+
+                option.selected =
+                  Number(candidateId) ===
+                  Number(playerId);
+
+                option.disabled =
+                  otherPlayers
+                    .map(Number)
+                    .includes(
+                      Number(candidateId)
+                    );
+
+                select.appendChild(option);
+              }
+            );
+
+            editor.appendChild(select);
           });
 
-          editor.appendChild(select);
-        });
+          playersCell.appendChild(editor);
 
-        playersCell.appendChild(editor);
+          const roleCell =
+            document.createElement("td");
 
-        const roleCell = document.createElement("td");
-        roleCell.innerHTML = `
-          <div class="role-counts">
-            <span>2× Dribbelaar</span>
-            <span>2× Runner</span>
-            <span>1× Inbounder</span>
-          </div>
-        `;
+          roleCell.innerHTML = `
+            <div class="role-counts">
+              <span>2× Dribbelaar</span>
+              <span>2× Runner</span>
+              <span>1× Inbounder</span>
+            </div>
+          `;
 
-        const minutesCell = document.createElement("td");
-        minutesCell.textContent = "4 minuten per speler";
+          const minutesCell =
+            document.createElement("td");
 
-        const actionCell = document.createElement("td");
+          minutesCell.textContent =
+            "4 minuten per speler";
 
-        const saveButton = document.createElement("button");
-        saveButton.className = "primary small-button";
-        saveButton.textContent = "Opslaan";
+          const actionCell =
+            document.createElement("td");
 
-        saveButton.addEventListener("click", () => {
-          const selectedPlayers = [
-            ...editor.querySelectorAll("select")
-          ].map(select => Number(select.value));
+          const saveButton =
+            document.createElement("button");
 
-          savePeriodChanges(
-            matchNumber,
-            periodIndex,
-            selectedPlayers
+          saveButton.className =
+            "primary small-button";
+
+          saveButton.textContent =
+            "Opslaan";
+
+          saveButton.addEventListener(
+            "click",
+            () => {
+              const selectedPlayers =
+                [
+                  ...editor.querySelectorAll(
+                    "select"
+                  )
+                ].map(select =>
+                  Number(select.value)
+                );
+
+              savePeriodChanges(
+                matchName,
+                periodIndex,
+                selectedPlayers
+              );
+            }
           );
-        });
 
-        actionCell.appendChild(saveButton);
+          actionCell.appendChild(saveButton);
 
-        row.append(
-          periodCell,
-          playersCell,
-          roleCell,
-          minutesCell,
-          actionCell
-        );
+          row.append(
+            periodCell,
+            playersCell,
+            roleCell,
+            minutesCell,
+            actionCell
+          );
 
-        body.appendChild(row);
-      });
+          body.appendChild(row);
+        }
+      );
 
-      renderBoard(matchNumber);
-      renderBalanceMessage(matchNumber);
+      renderBoard(matchName);
+      renderBalanceMessage(matchName);
     }
 
-    function renderBalanceMessage(matchNumber) {
-      const match = state.matches[matchNumber];
-      const container = document.getElementById("balanceMessage");
+    function renderBalanceMessage(matchName) {
+      const match =
+        state.matches[matchName];
+
+      const container =
+        document.getElementById(
+          "balanceMessage"
+        );
 
       container.innerHTML = "";
 
-      if (!match || !match.available.length) return;
+      if (
+        !match ||
+        !match.available.length
+      ) {
+        return;
+      }
 
-      const totals = Array(TOTAL_PLAYERS).fill(0);
+      const totals =
+        Array(TOTAL_PLAYERS).fill(0);
 
       match.schedule.forEach(period => {
         period.forEach(playerId => {
@@ -1845,33 +2103,49 @@
         });
       });
 
-      const availableTotals = match.available.map(
-        playerId => totals[playerId]
-      );
+      const availableTotals =
+        match.available.map(
+          playerId => totals[playerId]
+        );
 
-      const minimum = Math.min(...availableTotals);
-      const maximum = Math.max(...availableTotals);
-      const difference = maximum - minimum;
+      const minimum =
+        Math.min(...availableTotals);
 
-      const message = document.createElement("div");
+      const maximum =
+        Math.max(...availableTotals);
+
+      const difference =
+        maximum - minimum;
+
+      const message =
+        document.createElement("div");
 
       if (difference <= 1) {
-        message.className = "balance-ok";
+        message.className =
+          "balance-ok";
+
         message.textContent =
           "De speeltijd is evenredig verdeeld. " +
           "Het verschil is maximaal één periode.";
       } else {
-        message.className = "balance-warning";
+        message.className =
+          "balance-warning";
 
-        const mostPlayed = match.available
-          .filter(playerId => totals[playerId] === maximum)
-          .map(getPlayerName)
-          .join(", ");
+        const mostPlayed =
+          match.available
+            .filter(playerId =>
+              totals[playerId] === maximum
+            )
+            .map(getPlayerName)
+            .join(", ");
 
-        const leastPlayed = match.available
-          .filter(playerId => totals[playerId] === minimum)
-          .map(getPlayerName)
-          .join(", ");
+        const leastPlayed =
+          match.available
+            .filter(playerId =>
+              totals[playerId] === minimum
+            )
+            .map(getPlayerName)
+            .join(", ");
 
         message.textContent =
           `Let op: het verschil is ${difference} periodes. ` +
@@ -1883,30 +2157,39 @@
     }
 
     async function savePeriodChanges(
-      matchNumber,
+      matchName,
       periodIndex,
       selectedPlayers
     ) {
-      const match = state.matches[matchNumber];
-      const validation = validatePeriod(selectedPlayers);
+      const match =
+        state.matches[matchName];
+
+      const validation =
+        validatePeriod(selectedPlayers);
 
       if (!validation.valid) {
-        showMessage(validation.message, "error");
-        renderSchedule(matchNumber);
+        showMessage(
+          validation.message,
+          "error"
+        );
+
+        renderSchedule(matchName);
         return;
       }
 
-      match.schedule[periodIndex] = selectedPlayers;
+      match.schedule[periodIndex] =
+        selectedPlayers;
 
       try {
         await saveMatchToSheet(match);
 
-        renderSchedule(matchNumber);
+        renderSchedule(matchName);
         renderStats();
         renderMatches();
 
         showMessage(
-          `Periode ${periodIndex + 1} is opgeslagen.`
+          `Periode ${periodIndex + 1} tegen ` +
+          `${matchName} is opgeslagen.`
         );
       } catch (error) {
         showMessage(
@@ -1917,63 +2200,82 @@
     }
 
     function countStarts() {
-      const starts = Array(TOTAL_PLAYERS).fill(0);
+      const starts =
+        Array(TOTAL_PLAYERS).fill(0);
 
-      Object.values(state.matches).forEach(match => {
-        const firstPeriod = match.schedule?.[0] || [];
+      Object.values(state.matches)
+        .forEach(match => {
+          const firstPeriod =
+            match.schedule?.[0] || [];
 
-        firstPeriod.forEach(playerId => {
-          starts[playerId]++;
+          firstPeriod.forEach(playerId => {
+            starts[playerId]++;
+          });
         });
-      });
 
       return starts;
     }
 
     function countMinutes() {
-      const minutes = Array(TOTAL_PLAYERS).fill(0);
+      const minutes =
+        Array(TOTAL_PLAYERS).fill(0);
 
-      Object.values(state.matches).forEach(match => {
-        match.schedule?.forEach(period => {
-          period.forEach(playerId => {
-            minutes[playerId] += MINUTES_PER_PERIOD;
+      Object.values(state.matches)
+        .forEach(match => {
+          match.schedule?.forEach(period => {
+            period.forEach(playerId => {
+              minutes[playerId] +=
+                MINUTES_PER_PERIOD;
+            });
           });
         });
-      });
 
       return minutes;
     }
 
     function renderStats() {
-      const matches = Object.values(state.matches);
-      const starts = countStarts();
-      const minutes = countMinutes();
-      const body = document.getElementById("statsBody");
+      const matches =
+        Object.values(state.matches);
 
-      document.getElementById("matchCount").textContent =
-        matches.length;
+      const starts =
+        countStarts();
 
-      const totalStarts = starts.reduce(
-        (sum, value) => sum + value,
-        0
-      );
+      const minutes =
+        countMinutes();
 
-      const totalMinutes = minutes.reduce(
-        (sum, value) => sum + value,
-        0
-      );
+      const body =
+        document.getElementById("statsBody");
+
+      document.getElementById("matchCount")
+        .textContent = matches.length;
+
+      const totalStarts =
+        starts.reduce(
+          (sum, value) => sum + value,
+          0
+        );
+
+      const totalMinutes =
+        minutes.reduce(
+          (sum, value) => sum + value,
+          0
+        );
 
       document.getElementById("averageStarts")
         .textContent = matches.length
           ? formatNumber(
-              totalStarts / TOTAL_PLAYERS / matches.length
+              totalStarts /
+              TOTAL_PLAYERS /
+              matches.length
             )
           : "0,00";
 
       document.getElementById("averageMinutes")
         .textContent = matches.length
           ? formatNumber(
-              totalMinutes / TOTAL_PLAYERS / matches.length
+              totalMinutes /
+              TOTAL_PLAYERS /
+              matches.length
             )
           : "0,00";
 
@@ -1983,32 +2285,47 @@
         let availableMatches = 0;
 
         matches.forEach(match => {
-          if (match.available.includes(Number(player.id))) {
+          if (
+            match.available.includes(
+              Number(player.id)
+            )
+          ) {
             availableMatches++;
           }
         });
 
-        const averageStarts = availableMatches
-          ? starts[player.id] / availableMatches
-          : 0;
+        const averageStarts =
+          availableMatches
+            ? starts[player.id] /
+              availableMatches
+            : 0;
 
-        const averageMinutes = availableMatches
-          ? minutes[player.id] / availableMatches
-          : 0;
+        const averageMinutes =
+          availableMatches
+            ? minutes[player.id] /
+              availableMatches
+            : 0;
 
-        const row = document.createElement("tr");
+        const row =
+          document.createElement("tr");
 
         row.innerHTML = `
           <td>
-            <strong>${escapeHtml(player.name)}</strong>
+            <strong>
+              ${escapeHtml(player.name)}
+            </strong>
           </td>
+
           <td>
             ${
               player.roles.length
-                ? player.roles.map(getRoleLabel).join(", ")
+                ? player.roles
+                    .map(getRoleLabel)
+                    .join(", ")
                 : "Geen rol ingesteld"
             }
           </td>
+
           <td>${availableMatches}</td>
           <td>${starts[player.id]}</td>
           <td>${formatNumber(averageStarts)}</td>
@@ -2021,11 +2338,19 @@
     }
 
     function renderMatches() {
-      const body = document.getElementById("matchesBody");
+      const body =
+        document.getElementById(
+          "matchesBody"
+        );
 
-      const matches = Object.values(state.matches).sort(
-        (a, b) => a.matchNumber - b.matchNumber
-      );
+      const matches =
+        Object.values(state.matches)
+          .sort((a, b) =>
+            a.matchName.localeCompare(
+              b.matchName,
+              "nl"
+            )
+          );
 
       body.innerHTML = "";
 
@@ -2042,61 +2367,99 @@
       }
 
       matches.forEach(match => {
-        const row = document.createElement("tr");
+        const row =
+          document.createElement("tr");
 
-        const unavailable = state.players
-          .filter(player =>
-            !match.available.includes(Number(player.id))
-          )
-          .map(player => player.name);
+        const unavailable =
+          state.players
+            .filter(player =>
+              !match.available.includes(
+                Number(player.id)
+              )
+            )
+            .map(player => player.name);
 
-        const matchCell = document.createElement("td");
-        matchCell.innerHTML =
-          `<strong>Wedstrijd ${match.matchNumber}</strong>`;
+        const matchCell =
+          document.createElement("td");
 
-        const availableCell = document.createElement("td");
-        availableCell.textContent = match.available
-          .map(getPlayerName)
-          .join(", ");
+        matchCell.innerHTML = `
+          <strong>
+            ${escapeHtml(match.matchName)}
+          </strong>
+        `;
 
-        const unavailableCell = document.createElement("td");
-        unavailableCell.textContent = unavailable.length
-          ? unavailable.join(", ")
-          : "Iedereen beschikbaar";
+        const availableCell =
+          document.createElement("td");
 
-        const actionsCell = document.createElement("td");
-        actionsCell.className = "match-actions";
+        availableCell.textContent =
+          match.available
+            .map(getPlayerName)
+            .join(", ");
 
-        const viewButton = document.createElement("button");
-        viewButton.className = "secondary small-button";
-        viewButton.textContent = "Bekijken";
+        const unavailableCell =
+          document.createElement("td");
 
-        viewButton.addEventListener("click", () => {
-          document.getElementById("matchNumber").value =
-            match.matchNumber;
+        unavailableCell.textContent =
+          unavailable.length
+            ? unavailable.join(", ")
+            : "Iedereen beschikbaar";
 
-          renderAvailability();
-          renderSchedule(match.matchNumber);
+        const actionsCell =
+          document.createElement("td");
 
-          document.getElementById("scheduleCard")
-            .scrollIntoView({ behavior: "smooth" });
-        });
+        actionsCell.className =
+          "match-actions";
 
-        const printButton = document.createElement("button");
-        printButton.className = "primary small-button";
-        printButton.textContent = "PDF";
+        const viewButton =
+          document.createElement("button");
 
-        printButton.addEventListener("click", () => {
-          document.getElementById("matchNumber").value =
-            match.matchNumber;
+        viewButton.className =
+          "secondary small-button";
 
-          renderAvailability();
-          renderSchedule(match.matchNumber);
+        viewButton.textContent =
+          "Bekijken";
 
-          setTimeout(() => window.print(), 150);
-        });
+        viewButton.addEventListener(
+          "click",
+          () => {
+            setMatchName(match.matchName);
+            renderAvailability();
+            renderSchedule(match.matchName);
 
-        actionsCell.append(viewButton, printButton);
+            document
+              .getElementById("scheduleCard")
+              .scrollIntoView({
+                behavior: "smooth"
+              });
+          }
+        );
+
+        const printButton =
+          document.createElement("button");
+
+        printButton.className =
+          "primary small-button";
+
+        printButton.textContent =
+          "PDF";
+
+        printButton.addEventListener(
+          "click",
+          () => {
+            setMatchName(match.matchName);
+            renderAvailability();
+            renderSchedule(match.matchName);
+
+            setTimeout(() => {
+              window.print();
+            }, 150);
+          }
+        );
+
+        actionsCell.append(
+          viewButton,
+          printButton
+        );
 
         row.append(
           matchCell,
@@ -2132,28 +2495,45 @@
     }
 
     function resetTeam() {
-      if (!confirm("Alle namen en rollen terugzetten?")) {
+      if (!confirm(
+        "Alle namen en rollen terugzetten?"
+      )) {
         return;
       }
 
-      state.players = createDefaultPlayers();
+      state.players =
+        createDefaultPlayers();
 
       renderPlayers();
       renderAvailability();
 
-      showMessage("De standaardnamen zijn teruggezet.");
+      showMessage(
+        "De standaardnamen zijn teruggezet."
+      );
     }
 
     async function generateMatch() {
       try {
         updatePlayersFromForm();
 
-        const matchNumber = getMatchNumber();
-        const availablePlayers = getAvailablePlayers();
-        const schedule = generateSchedule(availablePlayers);
+        const matchName =
+          getMatchName();
+
+        const availablePlayers =
+          getAvailablePlayers();
+
+        const schedule =
+          generateSchedule(
+            availablePlayers
+          );
+
+        const oldMatch =
+          state.matches[matchName];
 
         const match = {
-          matchNumber,
+          matchName,
+          matchNumber:
+            oldMatch?.matchNumber || null,
           available: availablePlayers,
           schedule
         };
@@ -2161,14 +2541,15 @@
         await savePlayersToSheet();
         await saveMatchToSheet(match);
 
-        state.matches[matchNumber] = match;
+        state.matches[matchName] =
+          match;
 
-        renderSchedule(matchNumber);
+        renderSchedule(matchName);
         renderStats();
         renderMatches();
 
         showMessage(
-          `Wedstrijd ${matchNumber} is opgeslagen.`
+          `Wedstrijd tegen ${matchName} is opgeslagen.`
         );
       } catch (error) {
         showMessage(
@@ -2179,11 +2560,15 @@
     }
 
     async function removeMatch() {
-      const matchNumber = getMatchNumber();
+      const matchName =
+        getMatchName();
 
-      if (!state.matches[matchNumber]) {
+      const match =
+        state.matches[matchName];
+
+      if (!match) {
         showMessage(
-          `Wedstrijd ${matchNumber} bestaat nog niet.`,
+          `Er bestaat nog geen schema tegen ${matchName}.`,
           "error"
         );
 
@@ -2191,17 +2576,18 @@
       }
 
       if (!confirm(
-        `Wedstrijd ${matchNumber} verwijderen?`
+        `Wedstrijd tegen ${matchName} verwijderen?`
       )) {
         return;
       }
 
       try {
-        await deleteMatchFromSheet(matchNumber);
+        await deleteMatchFromSheet(match);
 
-        delete state.matches[matchNumber];
+        delete state.matches[matchName];
 
-        document.getElementById("scheduleCard")
+        document
+          .getElementById("scheduleCard")
           .classList.add("hidden");
 
         renderAvailability();
@@ -2209,7 +2595,7 @@
         renderMatches();
 
         showMessage(
-          `Wedstrijd ${matchNumber} is verwijderd.`
+          `Wedstrijd tegen ${matchName} is verwijderd.`
         );
       } catch (error) {
         showMessage(
@@ -2231,14 +2617,17 @@
 
         state.matches = {};
 
-        document.getElementById("scheduleCard")
+        document
+          .getElementById("scheduleCard")
           .classList.add("hidden");
 
         renderAvailability();
         renderStats();
         renderMatches();
 
-        showMessage("Alle wedstrijden zijn verwijderd.");
+        showMessage(
+          "Alle wedstrijden zijn verwijderd."
+        );
       } catch (error) {
         showMessage(
           `Verwijderen mislukt: ${error.message}`,
@@ -2249,7 +2638,9 @@
 
     async function initializeApp() {
       try {
-        showMessage("Gedeelde gegevens worden geladen...");
+        showMessage(
+          "Gedeelde gegevens worden geladen..."
+        );
 
         await loadSharedData();
 
@@ -2258,9 +2649,12 @@
         renderStats();
         renderMatches();
 
-        showMessage("Gedeelde gegevens zijn geladen.");
+        showMessage(
+          "Gedeelde gegevens zijn geladen."
+        );
       } catch (error) {
-        state.players = createDefaultPlayers();
+        state.players =
+          createDefaultPlayers();
 
         renderPlayers();
         renderAvailability();
@@ -2276,51 +2670,76 @@
 
     document
       .getElementById("saveTeam")
-      .addEventListener("click", saveTeam);
+      .addEventListener(
+        "click",
+        saveTeam
+      );
 
     document
       .getElementById("resetTeam")
-      .addEventListener("click", resetTeam);
+      .addEventListener(
+        "click",
+        resetTeam
+      );
 
     document
       .getElementById("generate")
-      .addEventListener("click", generateMatch);
+      .addEventListener(
+        "click",
+        generateMatch
+      );
 
     document
       .getElementById("removeMatch")
-      .addEventListener("click", removeMatch);
+      .addEventListener(
+        "click",
+        removeMatch
+      );
 
     document
       .getElementById("clearSeason")
-      .addEventListener("click", clearSeason);
+      .addEventListener(
+        "click",
+        clearSeason
+      );
 
     document
       .getElementById("saveBoard")
-      .addEventListener("click", saveBoard);
+      .addEventListener(
+        "click",
+        saveBoard
+      );
 
     document
-      .getElementById("matchNumber")
-      .addEventListener("change", () => {
-        renderAvailability();
-        renderSchedule(getMatchNumber());
-      });
+      .getElementById("matchName")
+      .addEventListener(
+        "change",
+        () => {
+          renderAvailability();
+          renderSchedule(getMatchName());
+        }
+      );
 
     document
       .getElementById("printCurrentMatch")
-      .addEventListener("click", () => {
-        const matchNumber = getMatchNumber();
+      .addEventListener(
+        "click",
+        () => {
+          const matchName =
+            getMatchName();
 
-        if (!state.matches[matchNumber]) {
-          showMessage(
-            `Er is geen schema voor wedstrijd ${matchNumber}.`,
-            "error"
-          );
+          if (!state.matches[matchName]) {
+            showMessage(
+              `Er is geen schema tegen ${matchName}.`,
+              "error"
+            );
 
-          return;
+            return;
+          }
+
+          window.print();
         }
-
-        window.print();
-      });
+      );
 
     initializeApp();
   </script>
